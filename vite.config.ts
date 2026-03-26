@@ -1,24 +1,9 @@
-import tailwindcss from '@tailwindcss/vite';
-import react from '@vitejs/plugin-react';
-import path from 'path';
-import {defineConfig, loadEnv} from 'vite';
+import { defineConfig } from 'vite'
+// 如果有其他 import 請保留
 
-export default defineConfig(({mode}) => {
-  const env = loadEnv(mode, '.', '');
-  return {
-    plugins: [react(), tailwindcss()],
-    define: {
-      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-    },
-    resolve: {
-      alias: {
-        '@': path.resolve(__dirname, '.'),
-      },
-    },
-    server: {
-      // HMR is disabled in AI Studio via DISABLE_HMR env var.
-      // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
-      hmr: process.env.DISABLE_HMR !== 'true',
-    },
-  };
-});
+export default defineConfig({
+  // 加入這一行，'upa' 是你的儲存庫名稱
+  base: '/upa/', 
+  
+  // 原本其他的設定請保留在下方
+})
