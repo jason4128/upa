@@ -1,0 +1,59 @@
+{
+  "entities": {
+    "EngineeringItem": {
+      "title": "Engineering Item",
+      "description": "A record of an engineering item's unit price and unit.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The name of the engineering item (e.g., 礦纖明架天花板)."
+        },
+        "unit": {
+          "type": "string",
+          "description": "The unit of measurement (e.g., 坪, m2, 式)."
+        },
+        "unitPrice": {
+          "type": "number",
+          "description": "The unit price in TWD."
+        },
+        "category": {
+          "type": "string",
+          "description": "The category of the engineering work (e.g., 天花板工程)."
+        },
+        "vendor": {
+          "type": "string",
+          "description": "The vendor who provided the quote."
+        },
+        "date": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The date the quote was received."
+        },
+        "remarks": {
+          "type": "string",
+          "description": "Additional notes or details."
+        },
+        "originalUnit": {
+          "type": "string",
+          "description": "The original unit used when the item was first created."
+        },
+        "originalPrice": {
+          "type": "number",
+          "description": "The original unit price used when the item was first created."
+        },
+        "unitPrices": {
+          "type": "object",
+          "description": "A map of pre-calculated unit prices for all units in the same category."
+        }
+      },
+      "required": ["name", "unit", "unitPrice", "category", "date", "originalUnit", "originalPrice", "unitPrices"]
+    }
+  },
+  "firestore": {
+    "/items/{itemId}": {
+      "schema": "EngineeringItem",
+      "description": "Collection of engineering items and their prices."
+    }
+  }
+}

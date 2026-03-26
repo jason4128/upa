@@ -1,0 +1,48 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: items
+    // Document ID: auto-generated
+    // Fields:
+    //   - name: string (required) - 1-100 chars
+    //   - unit: string (required) - 1-20 chars
+    //   - unitPrice: number (required) - positive
+    //   - category: string (required) - 1-50 chars
+    //   - vendor: string (optional) - 0-100 chars
+    //   - date: string (required) - ISO 8601 format
+    //   - remarks: string (optional) - 0-500 chars
+    //
+    // ===============================================================
+
+    // Helper Functions
+    function isValidDateString(dateStr) {
+      return dateStr is string && dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+    }
+
+    function isValidItem(data) {
+      return data.keys().hasAll(['name', 'unit', 'unitPrice', 'category', 'date', 'originalUnit', 'originalPrice', 'unitPrices']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.unit is string && data.unit.size() > 0 && data.unit.size() <= 20 &&
+             data.unitPrice is number && data.unitPrice >= 0 &&
+             data.category is string && data.category.size() > 0 && data.category.size() <= 50 &&
+             isValidDateString(data.date) &&
+             data.originalUnit is string && data.originalUnit.size() > 0 && data.originalUnit.size() <= 20 &&
+             data.originalPrice is number && data.originalPrice >= 0 &&
+             data.unitPrices is map &&
+             (!('vendor' in data) || (data.vendor is string && data.vendor.size() <= 100)) &&
+             (!('remarks' in data) || (data.remarks is string && data.remarks.size() <= 500));
+    }
+
+    match /items/{itemId} {
+      // WARNING: Public access enabled as requested (no login).
+      allow read: if true;
+      allow create: if isValidItem(request.resource.data);
+      allow update: if isValidItem(request.resource.data);
+      allow delete: if true;
+    }
+  }
+}
