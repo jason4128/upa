@@ -41,9 +41,7 @@ import {
   orderBy,
   getDocFromServer
 } from 'firebase/firestore';
-import * as XLSX from 'xlsx';
-import html2canvas from 'html2canvas';
-import { jsPDF } from 'jspdf';
+import XLSX from 'xlsx-js-style';
 import { db } from './firebase';
 
 // --- Types ---
@@ -147,63 +145,55 @@ function QuoteView({ selectedItems, onBack }: { selectedItems: EngineeringItem[]
     window.print();
   };
 
-  const handleExportPDF = async () => {
-    const element = document.getElementById('quote-document');
-    if (!element) return;
-
-    try {
-      // Hide non-print elements temporarily if needed (though we target the specific ID)
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#ffffff'
-      });
-      
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const imgProps = pdf.getImageProperties(imgData);
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-      
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`報價單_${clientName || '未命名'}_${new Date().toISOString().split('T')[0]}.pdf`);
-    } catch (err) {
-      console.error('PDF generation failed:', err);
-      alert('PDF 產生失敗，請嘗試使用列印功能。');
-    }
-  };
-
   const handleExportExcel = () => {
+    const borderStyle = {
+      top: { style: 'thin' },
+      bottom: { style: 'thin' },
+      left: { style: 'thin' },
+      right: { style: 'thin' }
+    };
+
     // Header information with better structure
     const header = [
-      ['報價單 (Quotation)'],
+      [{ v: '報價單 (Quotation)', s: { font: { bold: true, sz: 18 }, alignment: { horizontal: 'center' } } }],
       [''],
-      ['報價單編號:', quoteNumber, '', '', '日期:', new Date().toLocaleDateString('zh-TW')],
-      ['客戶名稱:', clientName || '未填寫'],
+      [
+        { v: '報價單編號:', s: { font: { bold: true } } }, 
+        { v: quoteNumber }, 
+        '', '', 
+        { v: '日期:', s: { font: { bold: true } } }, 
+        { v: new Date().toLocaleDateString('zh-TW') }
+      ],
+      [
+        { v: '客戶名稱:', s: { font: { bold: true } } }, 
+        { v: clientName || '未填寫' }
+      ],
       [''],
-      ['項目名稱', '類別', '單價', '數量', '單位', '小計']
+      ['項目名稱', '類別', '單價', '數量', '單位', '小計'].map(v => ({
+        v, s: { font: { bold: true }, fill: { fgColor: { rgb: "F3F4F6" } }, border: borderStyle, alignment: { horizontal: 'center' } }
+      }))
     ];
 
     const rows = selectedItems.map(item => {
       const qty = parseFloat(quantities[item.id] || '0');
-      return [
-        item.name,
-        item.category,
-        item.unitPrice,
-        isNaN(qty) ? 0 : qty,
-        item.unit,
-        item.unitPrice * (isNaN(qty) ? 0 : qty)
+      const row = [
+        { v: item.name, s: { border: borderStyle } },
+        { v: item.category, s: { border: borderStyle, alignment: { horizontal: 'center' } } },
+        { v: item.unitPrice, s: { border: borderStyle, numFmt: '#,##0' } },
+        { v: isNaN(qty) ? 0 : qty, s: { border: borderStyle, alignment: { horizontal: 'center' } } },
+        { v: item.unit, s: { border: borderStyle, alignment: { horizontal: 'center' } } },
+        { v: item.unitPrice * (isNaN(qty) ? 0 : qty), s: { border: borderStyle, numFmt: '#,##0', font: { bold: true } } }
       ];
+      return row;
     });
 
     const footer = [
       [''],
-      ['', '', '', '', '合計 (Subtotal)', subtotal],
-      ['', '', '', '', '稅金 (VAT 5%)', tax],
-      ['', '', '', '', '總計 (Total)', total],
+      ['', '', '', '', { v: '合計 (Subtotal)', s: { font: { bold: true } } }, { v: subtotal, s: { font: { bold: true }, numFmt: '#,##0' } }],
+      ['', '', '', '', { v: '稅金 (VAT 5%)', s: { font: { bold: true } } }, { v: tax, s: { font: { bold: true }, numFmt: '#,##0' } }],
+      ['', '', '', '', { v: '總計 (Total)', s: { font: { bold: true, sz: 14 } } }, { v: total, s: { font: { bold: true, sz: 14 }, numFmt: '#,##0' } }],
       [''],
-      ['備註: 感謝您的洽詢，本報價單有效期限為 30 天。']
+      [{ v: '備註: 感謝您的洽詢，本報價單有效期限為 30 天。', s: { font: { italic: true, color: { rgb: "888888" } } } }]
     ];
 
     const ws = XLSX.utils.aoa_to_sheet([...header, ...rows, ...footer]);
@@ -217,15 +207,44 @@ function QuoteView({ selectedItems, onBack }: { selectedItems: EngineeringItem[]
 
     // Styling/Sizing
     const colWidths = [
-      { wch: 35 }, { wch: 15 }, { wch: 12 }, { wch: 10 }, { wch: 8 }, { wch: 15 }
+      { wch: 40 }, { wch: 15 }, { wch: 12 }, { wch: 10 }, { wch: 8 }, { wch: 15 }
     ];
     ws['!cols'] = colWidths;
+
+    // A4 Print Setup
+    ws['!pageSetup'] = { paperSize: 9, orientation: 'portrait' };
 
     XLSX.writeFile(wb, `報價單_${clientName || '未命名'}_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   return (
     <div className="min-h-screen bg-white text-gray-900 font-sans print:p-0">
+      <style>
+        {`
+          @media print {
+            @page {
+              size: A4;
+              margin: 10mm;
+            }
+            body {
+              background: white !important;
+              -webkit-print-color-adjust: exact;
+            }
+            #quote-document {
+              width: 100% !important;
+              max-width: none !important;
+              padding: 0 !important;
+              margin: 0 !important;
+              box-shadow: none !important;
+              transform: scale(0.5);
+              transform-origin: top left;
+            }
+            .print\\:hidden {
+              display: none !important;
+            }
+          }
+        `}
+      </style>
       {/* Quote Header (Non-print) */}
       <div className="bg-gray-50 border-b border-gray-200 py-4 px-4 sticky top-0 z-30 print:hidden">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
@@ -243,13 +262,6 @@ function QuoteView({ selectedItems, onBack }: { selectedItems: EngineeringItem[]
             >
               <FileText size={18} />
               匯出 Excel
-            </button>
-            <button 
-              onClick={handleExportPDF}
-              className="bg-white text-gray-700 border border-gray-200 px-5 py-2.5 rounded-xl font-medium flex items-center gap-2 hover:bg-gray-50 transition-colors shadow-sm"
-            >
-              <Download size={18} />
-              下載 PDF
             </button>
             <button 
               onClick={handlePrint}
