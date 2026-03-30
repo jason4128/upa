@@ -27,10 +27,14 @@ import {
   ArrowLeft,
   CheckSquare,
   Square,
+  Check,
   Download,
-  Upload
+  Upload,
+  Camera,
+  Loader2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { GoogleGenAI, Type } from "@google/genai";
 import { 
   collection, 
   addDoc, 
@@ -252,25 +256,25 @@ function QuoteView({ selectedItems, onBack }: { selectedItems: EngineeringItem[]
       </style>
       {/* Quote Header (Non-print) */}
       <div className="bg-gray-50 border-b border-gray-200 py-4 px-4 sticky top-0 z-30 print:hidden">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
+        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <button 
             onClick={onBack}
-            className="flex items-center gap-2 text-gray-500 hover:text-black transition-colors font-medium"
+            className="flex items-center gap-2 text-gray-500 hover:text-black transition-colors font-medium self-start sm:self-auto"
           >
             <ArrowLeft size={20} />
             返回資料庫
           </button>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
             <button 
               onClick={handleExportExcel}
-              className="bg-white text-gray-700 border border-gray-200 px-5 py-2.5 rounded-xl font-medium flex items-center gap-2 hover:bg-gray-50 transition-colors shadow-sm"
+              className="flex-1 sm:flex-none bg-white text-gray-700 border border-gray-200 px-4 py-2.5 rounded-xl font-medium flex items-center justify-center gap-2 hover:bg-gray-50 transition-colors shadow-sm text-sm"
             >
               <FileText size={18} />
               匯出 Excel
             </button>
             <button 
               onClick={handlePrint}
-              className="bg-black text-white px-5 py-2.5 rounded-xl font-medium flex items-center gap-2 hover:bg-gray-800 transition-colors shadow-sm"
+              className="flex-1 sm:flex-none bg-black text-white px-4 py-2.5 rounded-xl font-medium flex items-center justify-center gap-2 hover:bg-gray-800 transition-colors shadow-sm text-sm"
             >
               <Printer size={18} />
               列印
@@ -279,94 +283,96 @@ function QuoteView({ selectedItems, onBack }: { selectedItems: EngineeringItem[]
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-8 py-12 print:py-0 print:px-0 print:max-w-none">
+      <div className="max-w-5xl mx-auto px-4 sm:px-8 py-6 sm:py-12 print:py-0 print:px-0 print:max-w-none">
         {/* Quote Document */}
-        <div id="quote-document" className="bg-white p-8 print:p-0">
-          <div className="flex justify-between items-start mb-12">
+        <div id="quote-document" className="bg-white p-4 sm:p-8 print:p-0">
+          <div className="flex flex-col sm:flex-row justify-between items-start gap-6 mb-8 sm:mb-12">
             <div>
-              <h1 className="text-4xl font-bold tracking-tight mb-2 uppercase print:text-5xl">Quotation</h1>
-              <p className="text-gray-400 font-mono text-sm">報價單編號: {quoteNumber}</p>
+              <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-2 uppercase print:text-5xl">Quotation</h1>
+              <p className="text-gray-400 font-mono text-xs sm:text-sm">報價單編號: {quoteNumber}</p>
             </div>
-            <div className="text-right">
-              <div className="font-bold text-xl mb-1">工程報價系統</div>
-              <div className="text-gray-500 text-sm">
+            <div className="text-left sm:text-right">
+              <div className="font-bold text-lg sm:text-xl mb-1">工程報價系統</div>
+              <div className="text-gray-500 text-xs sm:text-sm">
                 日期: {new Date().toLocaleDateString('zh-TW')}
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-12 mb-12">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 sm:gap-12 mb-8 sm:mb-12">
             <div>
-              <div className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">客戶資訊</div>
+              <div className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">客戶資訊</div>
               <input 
                 type="text" 
                 placeholder="輸入客戶名稱..."
                 value={clientName}
                 onChange={(e) => setClientName(e.target.value)}
-                className="w-full text-xl font-medium border-b-2 border-gray-100 focus:border-black outline-none pb-1 transition-colors print:border-none print:p-0"
+                className="w-full text-lg sm:text-xl font-medium border-b-2 border-gray-100 focus:border-black outline-none pb-1 transition-colors print:border-none print:p-0"
               />
             </div>
           </div>
 
-          <table className="w-full mb-12">
-            <thead>
-              <tr className="border-b-2 border-black">
-                <th className="py-4 text-left font-bold uppercase tracking-wider text-sm">項目名稱</th>
-                <th className="py-4 text-right font-bold uppercase tracking-wider text-sm">單價</th>
-                <th className="py-4 text-center font-bold uppercase tracking-wider text-sm w-32">數量</th>
-                <th className="py-4 text-center font-bold uppercase tracking-wider text-sm">單位</th>
-                <th className="py-4 text-right font-bold uppercase tracking-wider text-sm">小計</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {selectedItems.map((item) => {
-                const qty = parseFloat(quantities[item.id] || '0');
-                const itemSubtotal = item.unitPrice * (isNaN(qty) ? 0 : qty);
-                return (
-                  <tr key={item.id}>
-                    <td className="py-6">
-                      <div className="font-bold text-lg">{item.name}</div>
-                      <div className="text-sm text-gray-400 mt-1">{item.category}</div>
-                    </td>
-                    <td className="py-6 text-right font-mono">
-                      ${item.unitPrice.toLocaleString()}
-                    </td>
-                    <td className="py-6 text-center">
-                      <input 
-                        type="number" 
-                        min="0"
-                        step="any"
-                        value={quantities[item.id] || ''}
-                        onChange={(e) => setQuantities({ ...quantities, [item.id]: e.target.value })}
-                        className="w-24 text-center border border-gray-200 rounded-lg py-1 focus:border-black outline-none transition-colors print:border-none"
-                        placeholder="0"
-                      />
-                    </td>
-                    <td className="py-6 text-center text-gray-500">
-                      {item.unit}
-                    </td>
-                    <td className="py-6 text-right font-bold font-mono">
-                      ${itemSubtotal.toLocaleString()}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 mb-8 sm:mb-12">
+            <table className="w-full min-w-[600px] sm:min-w-0">
+              <thead>
+                <tr className="border-b-2 border-black">
+                  <th className="py-4 text-left font-bold uppercase tracking-wider text-xs sm:text-sm">項目名稱</th>
+                  <th className="py-4 text-right font-bold uppercase tracking-wider text-xs sm:text-sm">單價</th>
+                  <th className="py-4 text-center font-bold uppercase tracking-wider text-xs sm:text-sm w-24 sm:w-32">數量</th>
+                  <th className="py-4 text-center font-bold uppercase tracking-wider text-xs sm:text-sm">單位</th>
+                  <th className="py-4 text-right font-bold uppercase tracking-wider text-xs sm:text-sm">小計</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {selectedItems.map((item) => {
+                  const qty = parseFloat(quantities[item.id] || '0');
+                  const itemSubtotal = item.unitPrice * (isNaN(qty) ? 0 : qty);
+                  return (
+                    <tr key={item.id}>
+                      <td className="py-4 sm:py-6">
+                        <div className="font-bold text-base sm:text-lg">{item.name}</div>
+                        <div className="text-[10px] sm:text-sm text-gray-400 mt-1">{item.category}</div>
+                      </td>
+                      <td className="py-4 sm:py-6 text-right font-mono text-sm sm:text-base">
+                        ${item.unitPrice.toLocaleString()}
+                      </td>
+                      <td className="py-4 sm:py-6 text-center">
+                        <input 
+                          type="number" 
+                          min="0"
+                          step="any"
+                          value={quantities[item.id] || ''}
+                          onChange={(e) => setQuantities({ ...quantities, [item.id]: e.target.value })}
+                          className="w-16 sm:w-24 text-center border border-gray-200 rounded-lg py-1 focus:border-black outline-none transition-colors print:border-none text-sm"
+                          placeholder="0"
+                        />
+                      </td>
+                      <td className="py-4 sm:py-6 text-center text-gray-500 text-sm">
+                        {item.unit}
+                      </td>
+                      <td className="py-4 sm:py-6 text-right font-bold font-mono text-sm sm:text-base">
+                        ${itemSubtotal.toLocaleString()}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
 
           <div className="flex justify-end">
-            <div className="w-80">
-              <div className="flex justify-between py-3 border-b border-gray-100">
+            <div className="w-full sm:w-80">
+              <div className="flex justify-between py-3 border-b border-gray-100 text-sm sm:text-base">
                 <span className="text-gray-500">合計 (Subtotal)</span>
                 <span className="font-mono font-medium">${subtotal.toLocaleString()}</span>
               </div>
-              <div className="flex justify-between py-3 border-b border-gray-100">
+              <div className="flex justify-between py-3 border-b border-gray-100 text-sm sm:text-base">
                 <span className="text-gray-500">稅金 (VAT 5%)</span>
                 <span className="font-mono font-medium">${tax.toLocaleString()}</span>
               </div>
               <div className="flex justify-between py-6">
-                <span className="text-xl font-bold">總計 (Total)</span>
-                <span className="text-2xl font-bold font-mono text-black">
+                <span className="text-lg sm:text-xl font-bold">總計 (Total)</span>
+                <span className="text-xl sm:text-2xl font-bold font-mono text-black">
                   ${total.toLocaleString()}
                 </span>
               </div>
@@ -391,6 +397,13 @@ function MainApp() {
   const [editingItem, setEditingItem] = useState<EngineeringItem | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanProgress, setScanProgress] = useState<string | null>(null);
+  const [scannedItems, setScannedItems] = useState<any[]>([]);
+  const [isReviewingScan, setIsReviewingScan] = useState(false);
+  const [selectedScanIndices, setSelectedScanIndices] = useState<Set<number>>(new Set());
+  const [editingScanIndex, setEditingScanIndex] = useState<number | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | string[] | null>(null);
 
   // Selection & View State
   const [view, setView] = useState<'database' | 'quote'>('database');
@@ -521,15 +534,32 @@ function MainApp() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('確定要刪除此筆記錄嗎？')) return;
+  const handleDelete = async (id: string | string[]) => {
+    setDeleteConfirmId(id);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirmId) return;
+    
+    setLoading(true);
     try {
-      await deleteDoc(doc(db, 'items', id));
-      setSuccess('刪除成功！');
+      if (Array.isArray(deleteConfirmId)) {
+        for (const id of deleteConfirmId) {
+          await deleteDoc(doc(db, 'items', id));
+        }
+        setSelectedIds(new Set());
+        setSuccess(`成功刪除 ${deleteConfirmId.length} 筆資料！`);
+      } else {
+        await deleteDoc(doc(db, 'items', deleteConfirmId));
+        setSuccess('刪除成功！');
+      }
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, 'items');
       setError('刪除失敗。');
+    } finally {
+      setLoading(false);
+      setDeleteConfirmId(null);
     }
   };
 
@@ -697,6 +727,164 @@ function MainApp() {
       }
     };
     reader.readAsBinaryString(file);
+  };
+
+  const handleScanQuote = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Check file size (limit to 4MB for safety)
+    if (file.size > 4 * 1024 * 1024) {
+      setError('檔案太大了，請上傳小於 4MB 的檔案。');
+      return;
+    }
+
+    setIsScanning(true);
+    setScanProgress('正在讀取檔案...');
+    
+    try {
+      const reader = new FileReader();
+      const base64Promise = new Promise<string>((resolve) => {
+        reader.onload = () => {
+          const base64 = (reader.result as string).split(',')[1];
+          resolve(base64);
+        };
+      });
+      reader.readAsDataURL(file);
+      const base64Data = await base64Promise;
+
+      setScanProgress('AI 正在分析報價單內容...');
+      
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: [
+          {
+            parts: [
+              {
+                inlineData: {
+                  mimeType: file.type,
+                  data: base64Data
+                }
+              },
+              {
+                text: `請分析這份報價單檔案（圖片或 PDF），並提取其中的工程項目。
+                請以 JSON 格式回傳一個陣列，每個物件包含以下欄位：
+                - name: 項目名稱 (例如: 矽酸鈣板天花板)
+                - unit: 單位 (例如: 坪, m², 才, 式)
+                - unitPrice: 單價 (數字)
+                - category: 類別 (必須是以下之一: ${CATEGORIES.join(', ')})
+                - vendor: 廠商名稱 (如果有的話)
+                - remarks: 備註 (如果有的話)
+                
+                請只回傳 JSON 陣列，不要有其他文字。`
+              }
+            ]
+          }
+        ],
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                name: { type: Type.STRING },
+                unit: { type: Type.STRING },
+                unitPrice: { type: Type.NUMBER },
+                category: { type: Type.STRING },
+                vendor: { type: Type.STRING },
+                remarks: { type: Type.STRING }
+              },
+              required: ["name", "unit", "unitPrice", "category"]
+            }
+          }
+        }
+      });
+
+      const extractedItems = JSON.parse(response.text || '[]');
+      
+      if (extractedItems.length === 0) {
+        setError('無法從檔案中提取到有效的工程項目。');
+        return;
+      }
+
+      setScannedItems(extractedItems);
+      setSelectedScanIndices(new Set(extractedItems.map((_: any, i: number) => i)));
+      setIsReviewingScan(true);
+      setSuccess(`AI 掃描完成！請確認要匯入的項目。`);
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      console.error('AI Scan error:', err);
+      setError('AI 掃描失敗，請確保檔案清晰或嘗試手動輸入。');
+    } finally {
+      setIsScanning(false);
+      setScanProgress(null);
+      e.target.value = '';
+    }
+  };
+
+  const handleUpdateScannedItem = (index: number, updatedItem: any) => {
+    const newItems = [...scannedItems];
+    newItems[index] = updatedItem;
+    setScannedItems(newItems);
+    setEditingScanIndex(null);
+  };
+  const handleImportScannedItems = async () => {
+    if (selectedScanIndices.size === 0) return;
+    
+    setLoading(true);
+    setIsReviewingScan(false);
+    
+    try {
+      let importedCount = 0;
+      const itemsToImport = scannedItems.filter((_, i) => selectedScanIndices.has(i));
+
+      for (const item of itemsToImport) {
+        const unit = item.unit || '坪';
+        const unitPrice = item.unitPrice;
+        
+        // Calculate unitPrices
+        const unitPrices: Record<string, number> = {};
+        const group = Object.values(UNIT_GROUPS).find(g => g.includes(unit)) || [unit];
+        
+        group.forEach(u => {
+          if (UNIT_CONVERSIONS[unit] && UNIT_CONVERSIONS[u]) {
+            const calculatedPrice = unitPrice * (UNIT_CONVERSIONS[u] / UNIT_CONVERSIONS[unit]);
+            unitPrices[u] = Math.round(calculatedPrice);
+          } else {
+            unitPrices[u] = unitPrice;
+          }
+        });
+
+        const itemData = {
+          name: item.name,
+          unit,
+          unitPrice,
+          category: CATEGORIES.includes(item.category) ? item.category : '其他',
+          vendor: item.vendor || '',
+          quoteDate: new Date().toISOString().split('T')[0],
+          remarks: item.remarks || 'AI 掃描匯入',
+          originalUnit: unit,
+          originalPrice: unitPrice,
+          unitPrices,
+          date: new Date().toISOString()
+        };
+
+        await addDoc(collection(db, 'items'), itemData);
+        importedCount++;
+      }
+
+      setSuccess(`成功匯入 ${importedCount} 筆資料！`);
+      setTimeout(() => setSuccess(null), 5000);
+      setScannedItems([]);
+      setSelectedScanIndices(new Set());
+    } catch (err) {
+      console.error('Import error:', err);
+      setError('匯入失敗，請稍後再試。');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const startEdit = (item: EngineeringItem) => {
@@ -928,6 +1116,22 @@ function MainApp() {
                 匯入 Excel
               </button>
             </div>
+            <div className="relative">
+              <input 
+                type="file" 
+                accept="image/*,application/pdf"
+                onChange={handleScanQuote}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                id="ai-scan"
+                disabled={isScanning}
+              />
+              <button 
+                className={`bg-white text-gray-600 border border-gray-200 px-4 py-3 rounded-xl font-medium flex items-center gap-2 hover:bg-gray-50 transition-colors whitespace-nowrap ${isScanning ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                {isScanning ? <Loader2 size={20} className="animate-spin" /> : <Camera size={20} />}
+                AI 掃描報價單
+              </button>
+            </div>
             <button 
               onClick={() => setIsConverterOpen(true)}
               className="bg-white text-gray-600 border border-gray-200 px-4 py-3 rounded-xl font-medium flex items-center gap-2 hover:bg-gray-50 transition-colors"
@@ -954,6 +1158,15 @@ function MainApp() {
               <Plus size={20} />
               新增記錄
             </button>
+            {selectedIds.size > 0 && (
+              <button 
+                onClick={() => handleDelete(Array.from(selectedIds))}
+                className="bg-red-50 text-red-600 border border-red-100 px-6 py-3 rounded-xl font-medium flex items-center gap-2 hover:bg-red-100 transition-all whitespace-nowrap"
+              >
+                <Trash2 size={20} />
+                批次刪除 ({selectedIds.size})
+              </button>
+            )}
           </div>
         </div>
 
@@ -981,6 +1194,20 @@ function MainApp() {
               {success}
             </motion.div>
           )}
+          {isScanning && (
+            <motion.div 
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="bg-blue-50 text-blue-600 p-4 rounded-xl mb-6 flex items-center gap-3 overflow-hidden"
+            >
+              <Loader2 size={18} className="animate-spin" />
+              <div className="flex-1">
+                <div className="font-medium">AI 正在處理中...</div>
+                <div className="text-xs opacity-80">{scanProgress}</div>
+              </div>
+            </motion.div>
+          )}
         </AnimatePresence>
 
         {/* List */}
@@ -988,104 +1215,176 @@ function MainApp() {
           {loading ? (
             <div className="p-12 text-center text-gray-400">載入中...</div>
           ) : filteredItems.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-gray-50/50 border-bottom border-gray-100">
-                    <th className="px-6 py-4 w-12">
-                      <button 
-                        onClick={toggleAllSelection}
-                        className="text-gray-400 hover:text-black transition-colors"
-                      >
-                        {selectedIds.size === filteredItems.length && filteredItems.length > 0 ? (
-                          <CheckSquare size={20} className="text-black" />
-                        ) : (
-                          <Square size={20} />
-                        )}
-                      </button>
-                    </th>
-                    <th className="px-6 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">工程項目</th>
-                    <th className="px-6 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">類別</th>
-                    <th className="px-6 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">單位</th>
-                    <th className="px-6 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">單價 (TWD)</th>
-                    <th className="px-6 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">廠商</th>
-                    <th className="px-6 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">報價日期</th>
-                    <th className="px-6 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider text-right">操作</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {filteredItems.map((item) => (
-                    <motion.tr 
-                      layout
-                      key={item.id}
-                      className={`hover:bg-gray-50/50 transition-colors group ${selectedIds.has(item.id) ? 'bg-black/[0.02]' : ''}`}
-                    >
-                      <td className="px-6 py-4">
+            <>
+              {/* Desktop Table View */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-gray-50/50 border-bottom border-gray-100">
+                      <th className="px-6 py-4 w-12">
                         <button 
-                          onClick={() => toggleSelection(item.id)}
+                          onClick={toggleAllSelection}
                           className="text-gray-400 hover:text-black transition-colors"
                         >
-                          {selectedIds.has(item.id) ? (
+                          {selectedIds.size === filteredItems.length && filteredItems.length > 0 ? (
                             <CheckSquare size={20} className="text-black" />
                           ) : (
                             <Square size={20} />
                           )}
                         </button>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="font-medium text-gray-900">{item.name}</div>
-                        {item.remarks && <div className="text-xs text-gray-400 mt-1 line-clamp-1">{item.remarks}</div>}
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-                          {item.category}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <select 
-                          value={item.unit}
-                          onChange={(e) => handleInlineUnitChange(item, e.target.value)}
-                          className="bg-transparent border-none focus:ring-0 cursor-pointer text-gray-500 hover:text-black transition-colors p-0"
-                        >
-                          {(() => {
-                            const group = Object.values(UNIT_GROUPS).find(g => g.includes(item.unit)) || [item.unit];
-                            return group.map(u => <option key={u} value={u}>{u}</option>);
-                          })()}
-                        </select>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-1 font-mono font-medium text-gray-900">
-                          <span className="text-gray-400 text-xs">$</span>
-                          {item.unitPrice.toLocaleString()}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-gray-500">{item.vendor || '-'}</td>
-                      <td className="px-6 py-4 text-gray-400 text-sm">
-                        {item.quoteDate || new Date(item.date).toLocaleDateString()}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      </th>
+                      <th className="px-6 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">工程項目</th>
+                      <th className="px-6 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">類別</th>
+                      <th className="px-6 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">單位</th>
+                      <th className="px-6 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">單價 (TWD)</th>
+                      <th className="px-6 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">廠商</th>
+                      <th className="px-6 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">報價日期</th>
+                      <th className="px-6 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider text-right">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {filteredItems.map((item) => (
+                      <motion.tr 
+                        layout
+                        key={item.id}
+                        className={`hover:bg-gray-50/50 transition-colors group ${selectedIds.has(item.id) ? 'bg-black/[0.02]' : ''}`}
+                      >
+                        <td className="px-6 py-4">
                           <button 
-                            onClick={() => startEdit(item)}
-                            className="p-2 text-gray-400 hover:text-black transition-colors"
-                            title="編輯"
+                            onClick={() => toggleSelection(item.id)}
+                            className="text-gray-400 hover:text-black transition-colors"
                           >
-                            <Edit2 size={16} />
+                            {selectedIds.has(item.id) ? (
+                              <CheckSquare size={20} className="text-black" />
+                            ) : (
+                              <Square size={20} />
+                            )}
                           </button>
-                          <button 
-                            onClick={() => handleDelete(item.id)}
-                            className="p-2 text-gray-400 hover:text-red-500 transition-colors"
-                            title="刪除"
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="font-medium text-gray-900">{item.name}</div>
+                          {item.remarks && <div className="text-xs text-gray-400 mt-1 line-clamp-1">{item.remarks}</div>}
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                            {item.category}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <select 
+                            value={item.unit}
+                            onChange={(e) => handleInlineUnitChange(item, e.target.value)}
+                            className="bg-transparent border-none focus:ring-0 cursor-pointer text-gray-500 hover:text-black transition-colors p-0"
                           >
-                            <Trash2 size={16} />
-                          </button>
+                            {(() => {
+                              const group = Object.values(UNIT_GROUPS).find(g => g.includes(item.unit)) || [item.unit];
+                              return group.map(u => <option key={u} value={u}>{u}</option>);
+                            })()}
+                          </select>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-1 font-mono font-medium text-gray-900">
+                            <span className="text-gray-400 text-xs">$</span>
+                            {item.unitPrice.toLocaleString()}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-gray-500">{item.vendor || '-'}</td>
+                        <td className="px-6 py-4 text-gray-400 text-sm">
+                          {item.quoteDate || new Date(item.date).toLocaleDateString()}
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button 
+                              onClick={() => startEdit(item)}
+                              className="p-2 text-gray-400 hover:text-black transition-colors"
+                              title="編輯"
+                            >
+                              <Edit2 size={16} />
+                            </button>
+                            <button 
+                              onClick={() => handleDelete(item.id)}
+                              className="p-2 text-gray-400 hover:text-red-500 transition-colors"
+                              title="刪除"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </td>
+                      </motion.tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile Card View */}
+              <div className="md:hidden divide-y divide-gray-100">
+                {filteredItems.map((item) => (
+                  <div 
+                    key={item.id}
+                    className={`p-4 transition-colors ${selectedIds.has(item.id) ? 'bg-black/[0.02]' : ''}`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <button 
+                        onClick={() => toggleSelection(item.id)}
+                        className="mt-1 text-gray-400 hover:text-black transition-colors"
+                      >
+                        {selectedIds.has(item.id) ? (
+                          <CheckSquare size={20} className="text-black" />
+                        ) : (
+                          <Square size={20} />
+                        )}
+                      </button>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="font-medium text-gray-900 break-words">{item.name}</div>
+                          <div className="flex items-center gap-1">
+                            <button 
+                              onClick={() => startEdit(item)}
+                              className="p-1.5 text-gray-400 hover:text-black transition-colors"
+                            >
+                              <Edit2 size={14} />
+                            </button>
+                            <button 
+                              onClick={() => handleDelete(item.id)}
+                              className="p-1.5 text-gray-400 hover:text-red-500 transition-colors"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
                         </div>
-                      </td>
-                    </motion.tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                        <div className="flex flex-wrap items-center gap-2 mt-2">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-600">
+                            {item.category}
+                          </span>
+                          <span className="text-xs text-gray-400">{item.vendor || '無廠商'}</span>
+                        </div>
+                        <div className="flex items-center justify-between mt-4">
+                          <div className="flex items-center gap-2">
+                            <select 
+                              value={item.unit}
+                              onChange={(e) => handleInlineUnitChange(item, e.target.value)}
+                              className="text-xs bg-gray-50 border border-gray-200 rounded px-2 py-1 focus:ring-0 cursor-pointer text-gray-500"
+                            >
+                              {(() => {
+                                const group = Object.values(UNIT_GROUPS).find(g => g.includes(item.unit)) || [item.unit];
+                                return group.map(u => <option key={u} value={u}>{u}</option>);
+                              })()}
+                            </select>
+                            <div className="font-mono font-bold text-gray-900">
+                              <span className="text-gray-400 text-[10px] mr-0.5">$</span>
+                              {item.unitPrice.toLocaleString()}
+                            </div>
+                          </div>
+                          <div className="text-[10px] text-gray-400">
+                            {item.quoteDate || new Date(item.date).toLocaleDateString()}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
           ) : (
             <div className="p-20 text-center">
               <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-300">
@@ -1259,6 +1558,237 @@ function MainApp() {
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Scan Review Modal */}
+      <AnimatePresence>
+        {isReviewingScan && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsReviewingScan(false)}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl relative z-10 overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-white sticky top-0 z-20">
+                <div>
+                  <h2 className="text-xl font-semibold flex items-center gap-2">
+                    <Camera size={20} />
+                    確認掃描結果
+                  </h2>
+                  <p className="text-sm text-gray-400 mt-1">請勾選您想要匯入的工程項目</p>
+                </div>
+                <button 
+                  onClick={() => setIsReviewingScan(false)}
+                  className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-6">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between mb-4 px-2">
+                    <button 
+                      onClick={() => {
+                        if (selectedScanIndices.size === scannedItems.length) {
+                          setSelectedScanIndices(new Set());
+                        } else {
+                          setSelectedScanIndices(new Set(scannedItems.map((_, i) => i)));
+                        }
+                      }}
+                      className="text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors"
+                    >
+                      {selectedScanIndices.size === scannedItems.length ? '取消全選' : '全選所有項目'}
+                    </button>
+                    <span className="text-xs text-gray-400">已選擇 {selectedScanIndices.size} / {scannedItems.length} 個項目</span>
+                  </div>
+
+                  {scannedItems.map((item, index) => (
+                    <div 
+                      key={index}
+                      className={`p-4 rounded-2xl border transition-all flex items-start gap-4 ${selectedScanIndices.has(index) ? 'border-black bg-black/[0.02] shadow-sm' : 'border-gray-100 hover:border-gray-200'}`}
+                    >
+                      <div 
+                        onClick={() => {
+                          const newSelection = new Set(selectedScanIndices);
+                          if (newSelection.has(index)) {
+                            newSelection.delete(index);
+                          } else {
+                            newSelection.add(index);
+                          }
+                          setSelectedScanIndices(newSelection);
+                        }}
+                        className={`mt-1 flex-shrink-0 w-5 h-5 rounded border flex items-center justify-center transition-colors cursor-pointer ${selectedScanIndices.has(index) ? 'bg-black border-black text-white' : 'border-gray-300'}`}
+                      >
+                        {selectedScanIndices.has(index) && <Check size={14} strokeWidth={3} />}
+                      </div>
+                      
+                      {editingScanIndex === index ? (
+                        <div className="flex-1 space-y-3">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <input 
+                              type="text"
+                              value={item.name}
+                              onChange={(e) => {
+                                const newItems = [...scannedItems];
+                                newItems[index].name = e.target.value;
+                                setScannedItems(newItems);
+                              }}
+                              className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm"
+                              placeholder="項目名稱"
+                            />
+                            <div className="flex gap-2">
+                              <input 
+                                type="number"
+                                value={item.unitPrice}
+                                onChange={(e) => {
+                                  const newItems = [...scannedItems];
+                                  newItems[index].unitPrice = parseFloat(e.target.value);
+                                  setScannedItems(newItems);
+                                }}
+                                className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm"
+                                placeholder="單價"
+                              />
+                              <input 
+                                type="text"
+                                value={item.unit}
+                                onChange={(e) => {
+                                  const newItems = [...scannedItems];
+                                  newItems[index].unit = e.target.value;
+                                  setScannedItems(newItems);
+                                }}
+                                className="w-20 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm"
+                                placeholder="單位"
+                              />
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <select 
+                              value={item.category}
+                              onChange={(e) => {
+                                const newItems = [...scannedItems];
+                                newItems[index].category = e.target.value;
+                                setScannedItems(newItems);
+                              }}
+                              className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm"
+                            >
+                              {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                            <button 
+                              onClick={() => setEditingScanIndex(null)}
+                              className="px-4 py-2 bg-black text-white rounded-lg text-sm font-medium"
+                            >
+                              完成
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2">
+                            <h3 className="font-medium text-gray-900 truncate">{item.name}</h3>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-mono font-semibold text-gray-900 whitespace-nowrap">
+                                ${item.unitPrice?.toLocaleString()}
+                              </span>
+                              <button 
+                                onClick={() => setEditingScanIndex(index)}
+                                className="p-1 text-gray-400 hover:text-black transition-colors"
+                              >
+                                <Edit2 size={14} />
+                              </button>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3 mt-1">
+                            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{item.category}</span>
+                            <span className="text-xs text-gray-400">單位: {item.unit}</span>
+                            {item.vendor && <span className="text-xs text-gray-400">廠商: {item.vendor}</span>}
+                          </div>
+                          {item.remarks && (
+                            <p className="text-xs text-gray-400 mt-2 italic line-clamp-1">"{item.remarks}"</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="p-6 border-t border-gray-100 bg-gray-50 flex gap-3">
+                <button 
+                  onClick={() => setIsReviewingScan(false)}
+                  className="flex-1 px-6 py-4 bg-white border border-gray-200 rounded-2xl font-medium hover:bg-gray-50 transition-colors"
+                >
+                  取消
+                </button>
+                <button 
+                  onClick={handleImportScannedItems}
+                  disabled={selectedScanIndices.size === 0 || loading}
+                  className="flex-[2] px-6 py-4 bg-black text-white rounded-2xl font-medium flex items-center justify-center gap-2 hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />}
+                  匯入所選項目 ({selectedScanIndices.size})
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {deleteConfirmId && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setDeleteConfirmId(null)}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-sm relative z-10 overflow-hidden"
+            >
+              <div className="p-6 text-center">
+                <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Trash2 size={32} />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">確定要刪除嗎？</h3>
+                <p className="text-gray-500 text-sm mb-6">
+                  {Array.isArray(deleteConfirmId) 
+                    ? `您即將刪除 ${deleteConfirmId.length} 筆選中的工程項目記錄。`
+                    : '此操作將永久刪除此筆工程項目記錄，刪除後將無法復原。'}
+                </p>
+                <div className="flex gap-3">
+                  <button 
+                    onClick={() => setDeleteConfirmId(null)}
+                    className="flex-1 px-4 py-3 border border-gray-200 rounded-xl font-medium hover:bg-gray-50 transition-colors"
+                  >
+                    取消
+                  </button>
+                  <button 
+                    onClick={confirmDelete}
+                    disabled={loading}
+                    className="flex-1 px-4 py-3 bg-red-500 text-white rounded-xl font-medium hover:bg-red-600 transition-colors flex items-center justify-center gap-2"
+                  >
+                    {loading ? <Loader2 size={18} className="animate-spin" /> : <Trash2 size={18} />}
+                    確定刪除
+                  </button>
+                </div>
+              </div>
             </motion.div>
           </div>
         )}
