@@ -1016,7 +1016,7 @@ function MainApp() {
             <div className="w-8 h-8 bg-black text-white rounded-lg flex items-center justify-center">
               <Calculator size={18} />
             </div>
-            <span className="font-semibold text-lg hidden sm:block">工程單價參考手冊</span>
+            <span className="font-semibold text-lg hidden sm:block">工程單價分析系統</span>
           </div>
           <div className="flex items-center gap-2">
             <button 
