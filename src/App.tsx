@@ -27,7 +27,8 @@ import {
   ArrowLeft,
   CheckSquare,
   Square,
-  Download
+  Download,
+  Upload
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -155,18 +156,23 @@ function QuoteView({ selectedItems, onBack }: { selectedItems: EngineeringItem[]
 
     // Header information with better structure
     const header = [
-      [{ v: '報價單 (Quotation)', s: { font: { bold: true, sz: 18 }, alignment: { horizontal: 'center' } } }],
+      [{ v: '報價單 (Quotation)', s: { font: { bold: true, sz: 20 }, alignment: { horizontal: 'center' } } }],
       [''],
       [
-        { v: '報價單編號:', s: { font: { bold: true } } }, 
-        { v: quoteNumber }, 
-        '', '', 
-        { v: '日期:', s: { font: { bold: true } } }, 
-        { v: new Date().toLocaleDateString('zh-TW') }
+        { v: '報價單編號:', s: { font: { bold: true }, border: borderStyle } }, 
+        { v: quoteNumber, s: { border: borderStyle } }, 
+        { v: '', s: { border: borderStyle } }, 
+        { v: '', s: { border: borderStyle } }, 
+        { v: '日期:', s: { font: { bold: true }, border: borderStyle } }, 
+        { v: new Date().toLocaleDateString('zh-TW'), s: { border: borderStyle } }
       ],
       [
-        { v: '客戶名稱:', s: { font: { bold: true } } }, 
-        { v: clientName || '未填寫' }
+        { v: '客戶名稱:', s: { font: { bold: true }, border: borderStyle } }, 
+        { v: clientName || '未填寫', s: { border: borderStyle } },
+        { v: '', s: { border: borderStyle } },
+        { v: '', s: { border: borderStyle } },
+        { v: '', s: { border: borderStyle } },
+        { v: '', s: { border: borderStyle } }
       ],
       [''],
       ['項目名稱', '類別', '單價', '數量', '單位', '小計'].map(v => ({
@@ -212,7 +218,8 @@ function QuoteView({ selectedItems, onBack }: { selectedItems: EngineeringItem[]
     ws['!cols'] = colWidths;
 
     // A4 Print Setup
-    ws['!pageSetup'] = { paperSize: 9, orientation: 'portrait' };
+    ws['!pageSetup'] = { paperSize: 9, orientation: 'portrait', fitToWidth: 1, fitToHeight: 0 };
+    ws['!printOptions'] = { gridLines: false };
 
     XLSX.writeFile(wb, `報價單_${clientName || '未命名'}_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
@@ -224,7 +231,7 @@ function QuoteView({ selectedItems, onBack }: { selectedItems: EngineeringItem[]
           @media print {
             @page {
               size: A4;
-              margin: 10mm;
+              margin: 15mm;
             }
             body {
               background: white !important;
@@ -236,8 +243,6 @@ function QuoteView({ selectedItems, onBack }: { selectedItems: EngineeringItem[]
               padding: 0 !important;
               margin: 0 !important;
               box-shadow: none !important;
-              transform: scale(0.5);
-              transform-origin: top left;
             }
             .print\\:hidden {
               display: none !important;
@@ -274,12 +279,12 @@ function QuoteView({ selectedItems, onBack }: { selectedItems: EngineeringItem[]
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-8 py-12 print:py-0 print:px-0">
+      <div className="max-w-5xl mx-auto px-8 py-12 print:py-0 print:px-0 print:max-w-none">
         {/* Quote Document */}
         <div id="quote-document" className="bg-white p-8 print:p-0">
           <div className="flex justify-between items-start mb-12">
             <div>
-              <h1 className="text-4xl font-bold tracking-tight mb-2 uppercase">Quotation</h1>
+              <h1 className="text-4xl font-bold tracking-tight mb-2 uppercase print:text-5xl">Quotation</h1>
               <p className="text-gray-400 font-mono text-sm">報價單編號: {quoteNumber}</p>
             </div>
             <div className="text-right">
@@ -595,6 +600,105 @@ function MainApp() {
     setTimeout(() => setSuccess(null), 2000);
   };
 
+  const downloadTemplate = () => {
+    const templateData = [
+      {
+        '項目名稱': '範例項目 (例如: 矽酸鈣板天花板)',
+        '單位': '坪',
+        '單價': 3500,
+        '類別': '天花板工程',
+        '廠商': '範例廠商',
+        '報價日期': new Date().toISOString().split('T')[0],
+        '備註': '範例備註'
+      }
+    ];
+    const ws = XLSX.utils.json_to_sheet(templateData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "匯入範本");
+    XLSX.writeFile(wb, "工程項目匯入範本.xlsx");
+  };
+
+  const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data = XLSX.utils.sheet_to_json(ws) as any[];
+
+        if (data.length === 0) {
+          setError('Excel 檔案中沒有資料。');
+          return;
+        }
+
+        setLoading(true);
+        let importedCount = 0;
+        let skipCount = 0;
+
+        for (const row of data) {
+          const name = row['項目名稱'] || row['Name'];
+          const unit = row['單位'] || row['Unit'] || '坪';
+          const unitPriceRaw = row['單價'] || row['Price'];
+          const unitPrice = typeof unitPriceRaw === 'number' ? unitPriceRaw : parseFloat(unitPriceRaw);
+          const category = row['類別'] || row['Category'] || '其他';
+          const vendor = row['廠商'] || row['Vendor'] || '';
+          const quoteDate = row['報價日期'] || row['Date'] || new Date().toISOString().split('T')[0];
+          const remarks = row['備註'] || row['Remarks'] || '';
+
+          if (!name || isNaN(unitPrice)) {
+            skipCount++;
+            continue;
+          }
+
+          // Calculate unitPrices
+          const unitPrices: Record<string, number> = {};
+          const group = Object.values(UNIT_GROUPS).find(g => g.includes(unit)) || [unit];
+          
+          group.forEach(u => {
+            if (UNIT_CONVERSIONS[unit] && UNIT_CONVERSIONS[u]) {
+              const calculatedPrice = unitPrice * (UNIT_CONVERSIONS[u] / UNIT_CONVERSIONS[unit]);
+              unitPrices[u] = Math.round(calculatedPrice);
+            } else {
+              unitPrices[u] = unitPrice;
+            }
+          });
+
+          const itemData = {
+            name,
+            unit,
+            unitPrice,
+            category: CATEGORIES.includes(category) ? category : '其他',
+            vendor,
+            quoteDate,
+            remarks,
+            originalUnit: unit,
+            originalPrice: unitPrice,
+            unitPrices,
+            date: new Date().toISOString()
+          };
+
+          await addDoc(collection(db, 'items'), itemData);
+          importedCount++;
+        }
+
+        setSuccess(`成功匯入 ${importedCount} 筆資料！${skipCount > 0 ? `(跳過 ${skipCount} 筆無效資料)` : ''}`);
+        setTimeout(() => setSuccess(null), 5000);
+      } catch (err) {
+        console.error('Import error:', err);
+        setError('匯入失敗，請檢查檔案格式。');
+      } finally {
+        setLoading(false);
+        e.target.value = '';
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
   const startEdit = (item: EngineeringItem) => {
     setEditingItem(item);
     setFormData({
@@ -801,6 +905,29 @@ function MainApp() {
             />
           </div>
           <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
+            <button 
+              onClick={downloadTemplate}
+              className="bg-white text-gray-600 border border-gray-200 px-4 py-3 rounded-xl font-medium flex items-center gap-2 hover:bg-gray-50 transition-colors whitespace-nowrap"
+              title="下載匯入範本"
+            >
+              <Download size={20} />
+              範本
+            </button>
+            <div className="relative">
+              <input 
+                type="file" 
+                accept=".xlsx, .xls"
+                onChange={handleImportExcel}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                id="excel-upload"
+              />
+              <button 
+                className="bg-white text-gray-600 border border-gray-200 px-4 py-3 rounded-xl font-medium flex items-center gap-2 hover:bg-gray-50 transition-colors whitespace-nowrap"
+              >
+                <Upload size={20} />
+                匯入 Excel
+              </button>
+            </div>
             <button 
               onClick={() => setIsConverterOpen(true)}
               className="bg-white text-gray-600 border border-gray-200 px-4 py-3 rounded-xl font-medium flex items-center gap-2 hover:bg-gray-50 transition-colors"
