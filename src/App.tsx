@@ -31,7 +31,8 @@ import {
   Download,
   Upload,
   Camera,
-  Loader2
+  Loader2,
+  Settings
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GoogleGenAI, Type } from "@google/genai";
@@ -404,6 +405,8 @@ function MainApp() {
   const [selectedScanIndices, setSelectedScanIndices] = useState<Set<number>>(new Set());
   const [editingScanIndex, setEditingScanIndex] = useState<number | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | string[] | null>(null);
+  const [customApiKey, setCustomApiKey] = useState<string>(localStorage.getItem('gemini_api_key') || '');
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   // Selection & View State
   const [view, setView] = useState<'database' | 'quote'>('database');
@@ -743,6 +746,17 @@ function MainApp() {
     setScanProgress('正在讀取檔案...');
     
     try {
+      // Get API Key from various sources, prioritizing custom key from settings
+      const envKey = import.meta.env.VITE_GEMINI_API_KEY;
+      const apiKey = customApiKey || (typeof envKey === 'string' ? envKey : '');
+      
+      if (!apiKey || apiKey === 'undefined' || apiKey === 'null') {
+        setIsSettingsOpen(true);
+        setError('請先設定 Gemini API Key 才能使用 AI 掃描功能。');
+        setIsScanning(false);
+        return;
+      }
+
       const reader = new FileReader();
       const base64Promise = new Promise<string>((resolve) => {
         reader.onload = () => {
@@ -755,7 +769,7 @@ function MainApp() {
 
       setScanProgress('AI 正在分析報價單內容...');
       
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const ai = new GoogleGenAI({ apiKey: apiKey });
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
         contents: [
@@ -1004,18 +1018,27 @@ function MainApp() {
             </div>
             <span className="font-semibold text-lg hidden sm:block">工程單價參考手冊</span>
           </div>
-          {selectedIds.size > 0 && (
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-gray-500">已選擇 {selectedIds.size} 項</span>
-              <button 
-                onClick={() => setView('quote')}
-                className="bg-black text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-gray-800 transition-colors shadow-sm"
-              >
-                <FileText size={16} />
-                產生報價單
-              </button>
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setIsSettingsOpen(true)}
+              className="p-2 text-gray-400 hover:text-black transition-colors"
+              title="設定"
+            >
+              <Settings size={20} />
+            </button>
+            {selectedIds.size > 0 && (
+              <div className="flex items-center gap-4">
+                <span className="text-sm text-gray-500">已選擇 {selectedIds.size} 項</span>
+                <button 
+                  onClick={() => setView('quote')}
+                  className="bg-black text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-gray-800 transition-colors shadow-sm"
+                >
+                  <FileText size={16} />
+                  產生報價單
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
@@ -1738,6 +1761,84 @@ function MainApp() {
                 >
                   {loading ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />}
                   匯入所選項目 ({selectedScanIndices.size})
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Settings Modal */}
+      <AnimatePresence>
+        {isSettingsOpen && (
+          <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsSettingsOpen(false)}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-md relative z-10 overflow-hidden"
+            >
+              <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+                <h2 className="text-xl font-semibold flex items-center gap-2">
+                  <Settings size={20} />
+                  系統設定
+                </h2>
+                <button 
+                  onClick={() => setIsSettingsOpen(false)}
+                  className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-6">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Gemini API Key</label>
+                  <p className="text-xs text-gray-400 mb-3">
+                    若您在 GitHub Pages 等外部環境使用，請在此輸入您的 API Key。
+                    您可以到 <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">Google AI Studio</a> 免費申請。
+                  </p>
+                  <input 
+                    type="password" 
+                    placeholder="輸入您的 API Key..."
+                    value={customApiKey}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setCustomApiKey(val);
+                      localStorage.setItem('gemini_api_key', val);
+                    }}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all"
+                  />
+                  {customApiKey && (
+                    <p className="text-[10px] text-green-500 mt-2 flex items-center gap-1">
+                      <CheckCircle2 size={10} /> 已儲存至瀏覽器本地快取
+                    </p>
+                  )}
+                </div>
+
+                <div className="p-4 bg-blue-50 rounded-2xl">
+                  <div className="flex gap-3">
+                    <AlertCircle size={18} className="text-blue-500 flex-shrink-0 mt-0.5" />
+                    <div className="text-xs text-blue-700 leading-relaxed">
+                      <strong>隱私說明：</strong>您的 API Key 僅會儲存在您的瀏覽器中，不會上傳到我們的伺服器。
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-6 border-t border-gray-100 bg-gray-50">
+                <button 
+                  onClick={() => setIsSettingsOpen(false)}
+                  className="w-full px-6 py-3 bg-black text-white rounded-xl font-medium hover:bg-gray-800 transition-colors"
+                >
+                  完成設定
                 </button>
               </div>
             </motion.div>
