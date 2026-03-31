@@ -789,6 +789,7 @@ function MainApp() {
                 - unitPrice: 單價 (數字)
                 - category: 類別 (必須是以下之一: ${CATEGORIES.join(', ')})
                 - vendor: 廠商名稱 (如果有的話)
+                - quoteDate: 報價日期 (格式為 YYYY-MM-DD，如果報價單上有日期請務必提取，若無則留空)
                 - remarks: 備註 (如果有的話)
                 
                 請只回傳 JSON 陣列，不要有其他文字。`
@@ -808,6 +809,7 @@ function MainApp() {
                 unitPrice: { type: Type.NUMBER },
                 category: { type: Type.STRING },
                 vendor: { type: Type.STRING },
+                quoteDate: { type: Type.STRING },
                 remarks: { type: Type.STRING }
               },
               required: ["name", "unit", "unitPrice", "category"]
@@ -877,7 +879,7 @@ function MainApp() {
           unitPrice,
           category: CATEGORIES.includes(item.category) ? item.category : '其他',
           vendor: item.vendor || '',
-          quoteDate: new Date().toISOString().split('T')[0],
+          quoteDate: item.quoteDate || formData.quoteDate || new Date().toISOString().split('T')[0],
           remarks: item.remarks || 'AI 掃描匯入',
           originalUnit: unit,
           originalPrice: unitPrice,
